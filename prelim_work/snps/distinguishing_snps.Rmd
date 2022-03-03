@@ -1,0 +1,156 @@
+---
+title: "Distinguishing SNPs for DFTD1 and DFTD1 lines"
+author: "Mark Ziemann"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    fig_width: 7
+    fig_height: 7
+theme: cosmo
+---
+
+Source: https://github.com/markziemann/dftd
+
+## Introduction
+
+Here I'm reading in some SNP files from the cancer cell article: https://www.cell.com/cancer-cell/fulltext/S1535-6108(18)30117-X
+to identify SNPs in exons that could be used to distinguish the lines.
+
+The two files are SNPs which are present in the DFTD1 and DFTD2 cell types respectively.
+Although I'm not sure if these are mutually exclusive, the SNP sets may have an overlap,
+which I will test.
+
+There are 8 sample which are of interest to us.
+
+| Sample type | Sample label |
+| --- | --- |
+| DFT1 | 86T |
+| DFT1 | 88T |
+| DFT2 | 202T2 |
+| DFT2 | 203T3 |
+| Normal | 91H |
+| Normal | 31H |
+| Normal | 202H1 |
+| Normal | 203H |
+
+
+```{r,packages}
+
+suppressPackageStartupMessages({
+    library("eulerr")
+    library("kableExtra")
+})
+
+```
+
+
+## Load data
+
+Here I'm loading the data in and only selecting the DFTD lines.
+
+```{r,load1}
+
+d1 <- read.table("DFT1_SNVs.txt",header=TRUE)
+head(d1)
+str(d1)
+
+# subset to obtain DFTD lines only
+d1 <- d1[,1:8]
+head(d1)
+
+```
+
+## Cleaning data
+
+Now look at the SNPS which are common to the two DFTD1 lines 86 and 88
+
+First need to parse out the data into numerical format.
+
+```{r,dftd1}
+
+g1 <- d1[,5:ncol(d1)]
+x86 <- do.call(rbind,strsplit(g1$X86T,"/"))
+x88 <- do.call(rbind,strsplit(g1$X88T,"/"))
+x202 <- do.call(rbind,strsplit(g1$X202T2,"/"))
+x203 <- do.call(rbind,strsplit(g1$X203T3,"/"))
+
+g1 <- cbind(x86,x88,x202,x203)
+g1 <- apply(g1,2,as.numeric)
+
+colnames(g1) <- c("x86_alt","x86_total",
+  "x88_alt","x88_total",
+  "x202_alt","x202_total",
+  "x203_alt","x203_total")
+head(g1)
+
+x1 <- cbind(d1,g1)
+str(x1)
+
+```
+
+## Filtering
+
+Now we can filter further.
+
+Use a 25% allele frequency filter to identify the SNPs for each DFTD line.
+
+```{r,filter1}
+
+x86 <- x1[(which(x1$x86_alt / x1$x86_total > 0.25)),]
+x88 <- x1[(which(x1$x88_alt / x1$x88_total > 0.25)),]
+x202 <- x1[(which(x1$x202_alt / x1$x202_total > 0.25)),]
+x203 <- x1[(which(x1$x203_alt / x1$x203_total > 0.25)),]
+str(x86)
+str(x88)
+str(x202)
+str(x203)
+
+```
+
+Importantly, there were approx 6000 SNPs that could identify DFTD1 lines but only 7 which could 
+identify DFTD2 lines.
+
+Let's see whether these are specific to one cell line.
+
+```{r,filter2}
+
+x86_2 <- x1[which(x1$x86_alt / x1$x86_total > 0.25 & x1$x202_alt / x1$x202_total < 0.25 &  x1$x203_alt / x1$x203_total < 0.25 ),]
+dim(x86)
+dim(x86_2)
+
+x88_2 <- x1[which(x1$x88_alt / x1$x88_total > 0.25 & x1$x202_alt / x1$x202_total < 0.25 &  x1$x203_alt / x1$x203_total < 0.25 ),]
+dim(x88)
+dim(x88_2)
+
+```
+
+This shows that of the 5678 SNPs specific to x86, 5667 were specific to this line and not present in x202 or s203.
+
+Of the 6231 SNPs specific to x88, 6222 were specific to this line and not present in x202 or s203.
+
+This means that 5000-6000 SNPs can be used to distinguish genomes.
+
+```{r,filter3}
+
+d1_snps <- x1[which(x1$x86_alt / x1$x86_total > 0.25 & x1$x88_alt / x1$x88_total > 0.25),]
+str(d1_snps)
+
+d2_snps <- x1[which(x1$x202_alt / x1$x202_total > 0.25 & x1$x203_alt / x1$x203_total > 0.25),]
+str(d2_snps)
+
+```
+
+This indicates 2745 SNPs which are common to the DFTD1 cell lines, while only 3 SNPs were common to
+DFTD2 cell lines.
+
+## Exonic SNPs
+
+Next, lets look at the 6222 SNPs that are present in x88 and not in the DFTD2 lines and see how many are located 
+in exons.
+
+
+
+
