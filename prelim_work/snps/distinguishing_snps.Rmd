@@ -236,13 +236,18 @@ rnaseq <- as.data.frame(rnaseq)
 rnaseq_expressed <- rnaseq[which(rowMeans(rnaseq[,grep("counts",colnames(rnaseq))])>10),]
 dim(rnaseq_expressed)
 
-rnaseq_expressed$gene_id 
+head(rnaseq_expressed$gene_id )
 
 cds_vars$gene_name %in% rnaseq_expressed$gene_id
 cds_vars$gene_name[which(cds_vars$gene_name %in% rnaseq_expressed$gene_id)]
 length(cds_vars$gene_name[which(cds_vars$gene_name %in% rnaseq_expressed$gene_id)])
 
 ```
+
+In conclusion, there are only 29 genes where we will be able to use SNP variants to distinguish 
+cells in co-culture.
+
+This work supports the idea that cells need to be sorted prior to transcriptome analysis.
 
 ## Session information
 
