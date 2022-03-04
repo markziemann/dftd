@@ -16,7 +16,8 @@ Source: https://github.com/markziemann/dftd
 
 ## Introduction
 
-Here I'm reading in some SNP files from the cancer cell article: https://www.cell.com/cancer-cell/fulltext/S1535-6108(18)30117-X
+Here I'm reading in some SNP files from the cancer cell article: 
+https://www.cell.com/cancer-cell/fulltext/S1535-6108(18)30117-X
 to identify SNPs in exons that could be used to distinguish the lines.
 
 The two files are SNPs which are present in the DFTD1 and DFTD2 cell types respectively.
@@ -40,8 +41,10 @@ There are 8 sample which are of interest to us.
 ```{r,packages}
 
 suppressPackageStartupMessages({
-    library("eulerr")
-    library("kableExtra")
+  library("eulerr")
+  library("kableExtra")
+  library("GenomicRanges")
+  library("readxl")
 })
 
 ```
@@ -146,11 +149,105 @@ str(d2_snps)
 This indicates 2745 SNPs which are common to the DFTD1 cell lines, while only 3 SNPs were common to
 DFTD2 cell lines.
 
+Given that there are are only 2745 which are common to DFTD1 lines, we better focus on the 6222
+which can distinguish x88.
+
 ## Exonic SNPs
 
 Next, lets look at the 6222 SNPs that are present in x88 and not in the DFTD2 lines and see how many are located 
 in exons.
 
+The exon bedfile was generated with the gff2bed.sh script. 
+That script extracts CDS coordinates the GTF file.
+We use the GTF as input because it has the gene ID number which can be matched to the RNA-seq.
 
+```{r,exons1}
 
+cds <- read.table("../gene_annotation/Sarcophilus_harrisii.DEVIL7.0.90.gtf.cds.bed")
+colnames(cds) <- c("seqname","start","end","gene_name")
 
+# GRanges()
+cdsr <- GRanges(seqnames=cds$seqname,ranges=IRanges(start=cds$start, end=cds$end) )
+cdsr$gene_name <- cds$gene_name
+head(cdsr)
+
+```
+
+## SNP Exon Overlap
+
+The problem is that exons have this sort of seq name (GL834412.1) while the variants have this type 
+(Chr1_supercontig_000000000)
+
+The correspondence map of these naming conventions is given here: https://plos.figshare.com/articles/dataset/Genome_coordinates_/13283417/1
+
+```{r,map1}
+
+head(x88_2)
+
+map_tbl <- read.table("../gene_annotation/supercontig2gl.tsv",header=TRUE)
+head(map_tbl)
+x88_2$SCAFFOLD <- map_tbl[match(x88_2$SCAFFOLD,map_tbl$TCG_ID),"ENSEMBL_ID"]
+head(x88_2)
+
+```
+
+Now we can intersect
+
+```{r,intersect}
+
+x88_r <- GRanges(seqnames=x88_2$SCAFFOLD, ranges=IRanges(start=x88_2$POS, end=x88_2$POS+1) )
+
+x88_r
+
+ol <- findOverlaps(x88_r,cdsr)
+
+x88_r[queryHits(ol)]
+
+cds_vars <- as.data.frame(cdsr[subjectHits(ol)])
+
+cds_vars %>% 
+  kbl(caption="x88 vars in protein coding genes") %>% 
+  kable_paper("hover", full_width = F)
+
+length(unique(cds_vars$gene_name))
+
+```
+
+This result shows that from the 6222 variants that can distinguish x88, only 50 are in
+protein-coding genes (0.08%).
+
+Each of these genes contained only 1 variant, so there are only 50 genes which can be
+distinguished.
+
+This is consistent with only 1.1% of the genome being in expressed exons.
+And that exons are anticipated to accumulate variants at a rate slower than non-exonic regions
+due to their essential function.
+
+## Which genes are expressed
+
+From these 50 genes, not all of them will be expressed in the cells.
+We can look at the list of genes which are expressed in RNA-seq to give a realistic 
+propostion of how many can be distinguished by RNA-seq.
+
+```{r,rnaseq}
+
+rnaseq <- readxl::read_xlsx("../oncotarget-09-15895-s002.xlsx",col_names=TRUE,skip=1)
+rnaseq <- as.data.frame(rnaseq)
+rnaseq_expressed <- rnaseq[which(rowMeans(rnaseq[,grep("counts",colnames(rnaseq))])>10),]
+dim(rnaseq_expressed)
+
+rnaseq_expressed$gene_id 
+
+cds_vars$gene_name %in% rnaseq_expressed$gene_id
+cds_vars$gene_name[which(cds_vars$gene_name %in% rnaseq_expressed$gene_id)]
+length(cds_vars$gene_name[which(cds_vars$gene_name %in% rnaseq_expressed$gene_id)])
+
+```
+
+## Session information
+
+```{r,sessioninfo}
+
+sessionInfo()
+
+```
